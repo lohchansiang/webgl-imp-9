@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en-us">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no"> 
+		<!-- BOC: [title] -->
+		<title>Technetium Unity</title>
+		<!-- EOC -->
+		<!-- BOC: [icon] -->
+		<link rel="shortcut icon" href="favicon.ico">
+		<!-- EOC -->
+	  <!-- BOC: [meta] -->
+	  <meta property="og:url" content="https://hamochigames.github.io/hg-world-webgl/">
+	  <meta property="og:type" content="website"/>
+	  <meta property="og:title" content="Educational Games for Students">
+	  <meta property="og:description" content="Free edugames platform for Malaysia primary school students.">
+	  <meta property="og:image" content="SocialMedia.png">
+	  <meta name="description" content="Educational Games Platform for Malaysia Primary School Students" />
+	  <!-- EOC -->
+	  <!-- BOC: [scripts] -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+		<script src="unity-webview.js"></script>
+	  <!-- EOC -->
+		<style>
+			html,body {
+				overflow: hidden;
+				width:100%;
+				height:100%;
+				margin: 0;
+				padding: 0; 
+				touch-action: pan-y pan-x; /* disable zoom by forbig pinch gesture*/
+			}
+			#layer-rotation {
+				z-index: 1000;
+				position: fixed;
+				top: 0;
+				bottom: 0;
+				right: 0;
+				left: 0;
+				background-color: white;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+				width: 100vw;
+				height: 100vh;
+			}
+			#layer-rotation > div {
+				padding-bottom: 10vh;
+			}
+			@media (orientation: landscape) {
+				#layer-rotation {
+					display: none;
+				}
+			}
+			#layer-loading {
+				z-index: 800;
+				position: fixed;
+				top: 0;
+				bottom: 0;
+				right: 0;
+				left: 0;
+				background-color: white;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+				width: 100vw;
+				height: 100vh;
+			}
+			#unity-container {
+				position: relative;
+				width:100%;
+				height:100%;
+				background-color:white;
+				text-align: center;
+			}
+			#unity-canvas{
+				position:absolute;
+				top:0;
+				bottom:0;
+				left:0;
+				right:0;
+				margin:auto;
+			}
+			#webview-container {
+				position:absolute;
+				top:0;
+				bottom:0;
+				left:0;
+				right:0;
+				margin:auto;
+				pointer-events: none;
+				text-align: left;
+			}
+			#header { 
+				position: relative; 
+				display: none;
+			}
+			#container-version {
+				position: absolute;
+				bottom: 0;
+				left: 0;
+				right: 0;
+				margin: auto;
+				padding:10px;
+				font-size:11px;
+			}
+			#unity-logo { 
+				width: 154px; 
+				height: 150px; 
+				background: url('Icon.png') no-repeat center 
+			}
+			#unity-progress-bar-empty { 
+				width: 141px; 
+				height: 18px; 
+				margin-top: 10px; 
+				background: url('progress-bar-empty-light.png') no-repeat center 
+			}
+			#unity-progress-bar-full { 
+				width: 0%; 
+				height: 18px; 
+				margin-top: 10px; 
+				background: url('progress-bar-full-light.png') no-repeat center 
+			}
+			#unity-fullscreen-button { 
+				float: right; 
+				width: 38px; 
+				height: 38px; 
+				background: url('fullscreen-button.png') no-repeat center;
+				background-size: contain;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="layer-rotation">
+			<div>
+				<img src="ImageRotate.png"/>
+				<div>Rotate your device to play</div>
+			</div>
+		</div>
+		<div id="layer-loading">
+			<div>
+				<div id="unity-logo"></div>
+				<div id="unity-progress-bar-empty">
+					<div id="unity-progress-bar-full"></div>
+				</div>
+				<div id="container-version"><i>Version 1.0</i></div>
+			</div>
+		</div>
+		<div id="unity-container">
+			<canvas id="unity-canvas" width=960 height=600></canvas>
+			<div id="webview-container"></div>
+			<div style="position:absolute; color:gray;">
+				<div id="type-info"></div>
+				<div id="width-info"></div>
+				<div id="height-info"></div>
+			</div>
+			<div id="header">
+				<div id="unity-fullscreen-button"></div>
+			</div>
+		</div>
+
+		<script>
+			var buildUrl = "Build";
+			var loaderUrl = buildUrl + "/Test Build Webgl 5.loader.js";
+			var config = {
+				dataUrl: buildUrl + "/Test Build Webgl 5.data",
+				frameworkUrl: buildUrl + "/Test Build Webgl 5.framework.js",
+				codeUrl: buildUrl + "/Test Build Webgl 5.wasm",
+				streamingAssetsUrl: "StreamingAssets",
+				companyName: "Technetium Heim Sdn Bhd",
+				productName: "Technetium Unity",
+				productVersion: "1.0",
+			};
+
+			var isUnityLoaded = false;
+			var container = document.querySelector("#unity-container");
+			var canvas = document.querySelector("#unity-canvas");
+			var webview = document.querySelector("#webview-container");
+			var loadingBar = document.querySelector("#layer-loading");
+			var header = document.querySelector("#header");
+			var progressBarFull = document.querySelector("#unity-progress-bar-full");
+			var fullscreenButton = document.querySelector("#unity-fullscreen-button");
+			var typeInfo = document.querySelector("#type-info");
+			var widthInfo = document.querySelector("#width-info");
+			var heightInfo = document.querySelector("#height-info");
+			var width0 = "960px";
+			var height0 = "600px";
+
+			//BOC:to handle screen resize, or phone orientation
+			//delay is important for phone
+				function resize(delay=10) {
+					setTimeout(()=>{
+						var w = window.innerWidth;
+						var h = window.innerHeight;
+						var ratio = 16/9;
+
+						if (isIOS()) {
+							
+							if(h>w) {
+								typeInfo.innerHTML = "ios portrait";
+								// Portrait
+								canvas.style.width = w+'px';
+								canvas.style.height = (w/ratio)+'px';
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								//updateElementScale('portrait');
+							}
+							else {
+								typeInfo.innerHTML = "ios landscape";
+								// Landscape
+								if( h*ratio > w ){
+									canvas.style.width = w+'px';
+									canvas.style.height = (w/ratio)+'px';
+								}else{
+									canvas.style.width = (h*ratio)+'px';
+									canvas.style.height = h+'px';
+								}
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								//updateElementScale('landscape');
+							}
+						}
+						else if (isAndroid()) {
+							typeInfo.innerHTML = "android";
+							if(h>w) {
+								// Exit FullScreen
+								if (document.fullscreenElement) document.exitFullscreen();
+
+								// Portrait
+								canvas.style.width = w+'px';
+								canvas.style.height = (w/ratio)+'px';
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								//updateElementScale('portrait');
+							}
+							else {
+								if (document.fullscreenElement){
+									canvas.style.width = getComputedStyle(container).width;
+									canvas.style.height = getComputedStyle(container).height;
+								}else{
+									// Landscape
+									if( h*ratio > w ){
+										canvas.style.width = w+'px';
+										canvas.style.height = (w/ratio)+'px';
+									}else{
+										canvas.style.width = (h*ratio)+'px';
+										canvas.style.height = h+'px';
+									}
+								}
+								
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								//updateElementScale('landscape');
+							}
+						}
+						else {
+							typeInfo.innerHTML = "pc";
+							// Device PC
+							if (document.fullscreenElement) {
+								canvas.style.width = getComputedStyle(container).width;
+								canvas.style.height = getComputedStyle(container).height;
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+							} else {
+								canvas.style.width = "960px";
+								canvas.style.height = "600px";
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+							}	
+
+							revertElementScale();
+						}
+
+						var clientWidth = document.documentElement.clientWidth;
+						var clientHeight = document.documentElement.clientHeight;
+						widthInfo.innerHTML = "width: " + w + "; cwidth: " + clientWidth + "; style-width:"+ canvas.style.width;
+						heightInfo.innerHTML = "height: " + h + "; cheight: " + clientHeight + "; style-height:"+ canvas.style.height;
+
+						if( isUnityLoaded ){
+							// Update Header 
+							if( isIOS() ){
+								header.style.display = "none";
+							}else if( isAndroid() ){
+								if (document.fullscreenElement) {
+									header.style.display = "none";
+								}else{
+									header.style.display = "block";
+								}
+							}else{
+								if (document.fullscreenElement) {
+									header.style.display = "none";
+								}else{
+									header.style.display = "block";
+								}
+							}
+
+							unityWebView.onResizeCallFromJs(); //use JsHook file 
+						}else{
+							header.style.display = "none";
+						}
+						
+					},delay);
+				}
+
+				resize();
+				window.addEventListener("resize",resize);
+			//EOC
+			//BOC:[to handle screen lock distruption]
+				document.addEventListener("visibilitychange",()=>{
+					if (document.visibilityState === 'visible') {
+						resize(100);
+					}
+				});
+			//EOC
+			//BOC: Check if is IOS
+				function isIOS() {
+					return ( [
+						'iPad Simulator',
+						'iPhone Simulator',
+						'iPod Simulator',
+						'iPad',
+						'iPhone',
+						'iPod'
+					].includes(navigator.platform)
+					// iPad on iOS 13 detection
+					|| ( navigator.userAgent.includes("Mac") && "ontouchend" in document) )
+					|| ( navigator.userAgent.match(/Mac/) && navigator.maxTouchPoints && navigator.maxTouchPoints > 2 )
+				}
+				function isAndroid() {
+					return /Android|Mobi/i.test(navigator.userAgent)
+				}
+			//EOC
+			//BOC: Get Viewport Scale
+				function getViewportScale(){
+					var viewportWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+					var screenWidth = window.screen.width;
+					var viewportScale = screenWidth / viewportWidth;
+
+					return viewportScale;
+				}
+			//EOC
+			//BOC: Set Scaling item
+				function updateElementScale( type ){
+					var vscale = getViewportScale();
+					var oriWidth = 38;
+					var oriHeight = 38;
+					
+					fullscreenButton.style.width = oriWidth/vscale + 'px';
+					fullscreenButton.style.height = oriHeight/vscale + 'px';
+				}				
+			//EOC
+			//BOC: Revert Element
+				function revertElementScale(){
+					var vscale = getViewportScale();
+					var oriWidth = 38;
+					var oriHeight = 38;
+					
+					fullscreenButton.style.width = '38px';
+					fullscreenButton.style.height = '38px';
+				}				
+			//EOC
+
+			// By default Unity keeps WebGL canvas render target size matched with
+			// the DOM size of the canvas element (scaled by window.devicePixelRatio)
+			// Set this to false if you want to decouple this synchronization from
+			// happening inside the engine, and you would instead like to size up
+			// the canvas DOM size and WebGL render target sizes yourself.
+			// config.matchWebGLToCanvasSize = false;
+
+			if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+				config.devicePixelRatio = window.devicePixelRatio;
+				loadingBar.style.width = '100%';
+				loadingBar.style.height = '100%';
+			}
+
+			loadingBar.style.display = "flex";
+
+			document.addEventListener(
+				'fullscreenchange',
+				function() {
+					if (document.fullscreenElement) {
+						setTimeout(
+							function() {
+								resize(100);
+							},
+						200);
+					} else {
+						resize(100);
+					}
+				}
+			);
+
+			var script = document.createElement("script");
+			script.src = loaderUrl;
+			script.onload = () => {
+				createUnityInstance(canvas, config, (progress) => {
+					progressBarFull.style.width = 100 * progress + "%";
+				}).then((unityInstance) => {
+					window.unityInstance = unityInstance;
+					loadingBar.style.display = "none";
+
+					fullscreenButton.onclick = () => {
+						var p = document.getElementById('unity-container');
+						var c = document.getElementById('unity-canvas');
+						c.requestFullscreen = () => {
+							p.requestFullscreen();
+						};
+						unityInstance.SetFullscreen(1);
+					};
+
+					isUnityLoaded = true;
+					resize();
+				}).catch((message) => {
+					alert(message);
+				});
+			  };
+			document.body.appendChild(script);
+		</script>
+	</body>
+</html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en-us">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		
+		<title>Technetium Unity</title>
+		<link rel="shortcut icon" href="favicon.ico">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+		<script src="unity-webview.js"></script>
+		<style>
+			html,body {
+				overflow: hidden;
+				width:100%;
+				height:100%;
+				margin: 0;
+				padding: 0; 
+				touch-action: pan-y pan-x; /* disable zoom by forbig pinch gesture*/
+			}
+			#unity-container {
+				position: relative;
+				width:100%;
+				height:100%;
+				background-color:white;
+				text-align: center;
+			}
+			#unity-canvas{
+				position:absolute;
+				top:0;
+				bottom:0;
+				left:0;
+				right:0;
+				margin:auto;
+			}
+			#webview-container {
+				position:absolute;
+				top:0;
+				bottom:0;
+				left:0;
+				right:0;
+				margin:auto;
+				pointer-events: none;
+				text-align: left;
+			}
+			#header { 
+				position: relative; 
+				display: none;
+			}
+			#unity-loading-bar { 
+				background-color:black;
+				position: absolute; 
+				top:0;
+				bottom:0;
+				left:0;
+				right:0;
+				margin:auto;
+				display: none;
+				justify-content: center;
+				height:600px;
+				width:960px;
+				align-items: center;
+			}
+			#unity-logo { 
+				width: 154px; 
+				height: 130px; 
+				background: url('unity-logo-dark.png') no-repeat center 
+			}
+			#unity-progress-bar-empty { 
+				width: 141px; 
+				height: 18px; 
+				margin-top: 10px; 
+				background: url('progress-bar-empty-dark.png') no-repeat center 
+			}
+			#unity-progress-bar-full { 
+				width: 0%; 
+				height: 18px; 
+				margin-top: 10px; 
+				background: url('progress-bar-full-dark.png') no-repeat center 
+			}
+			#unity-fullscreen-button { 
+				float: right; 
+				width: 38px; 
+				height: 38px; 
+				background: url('fullscreen-button.png') no-repeat center;
+				background-size: contain;
+			}
+			/*#unity-footer { 
+				padding: 10px;
+				text-align: center;
+				width:100%;
+				display: none;
+			}*/
+			@media (orientation: landscape) {
+				#unity-footer { 
+					padding: 0;
+					display: none;
+				}
+			}
+			@media (orientation: portrait) {
+				#unity-footer { 
+					padding: 10px;
+					text-align: center;
+					width:100%;
+					display: block;
+					font-size: 2em;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="unity-container">
+			<canvas id="unity-canvas" width=960 height=600></canvas>
+			<div id="webview-container"></div>
+			<div id="unity-loading-bar">
+				<div>
+					<div id="unity-logo"></div>
+					<div id="unity-progress-bar-empty">
+						<div id="unity-progress-bar-full"></div>
+					</div>
+				</div>
+			</div>
+			<div id="header">
+				<div id="unity-fullscreen-button"></div>
+			</div>
+			<div id="unity-footer">
+				Enter fullscreen for better experience.
+			</div>
+		</div>
+
+		<script>
+			var buildUrl = "Build";
+			var loaderUrl = buildUrl + "/Test Build Webgl 5.loader.js";
+			var config = {
+				dataUrl: buildUrl + "/Test Build Webgl 5.data",
+				frameworkUrl: buildUrl + "/Test Build Webgl 5.framework.js",
+				codeUrl: buildUrl + "/Test Build Webgl 5.wasm",
+				streamingAssetsUrl: "StreamingAssets",
+				companyName: "Technetium Heim Sdn Bhd",
+				productName: "Technetium Unity",
+				productVersion: "1.0",
+			};
+
+			var isUnityLoaded = false;
+			var container = document.querySelector("#unity-container");
+			var canvas = document.querySelector("#unity-canvas");
+			var webview = document.querySelector("#webview-container");
+			var loadingBar = document.querySelector("#unity-loading-bar");
+			var header = document.querySelector("#header");
+			var footer = document.querySelector("#unity-footer");
+			var progressBarFull = document.querySelector("#unity-progress-bar-full");
+			var fullscreenButton = document.querySelector("#unity-fullscreen-button");
+			var width0 = "960px";
+			var height0 = "600px";
+
+			//BOC:[change instruction based on device]
+			if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+				document.getElementById("unity-footer").textContent="Rotate your device for better experience.";
+			}
+			//EOC
+
+			//BOC:to handle screen resize, or phone orientation
+			//delay is important for phone
+				function resize(delay=10) {
+					setTimeout(()=>{
+						var w = window.innerWidth;
+						var h = window.innerHeight;
+						var ratio = 16/9;
+
+						if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+							if(h>w) {
+								// Portrait
+								canvas.style.width = w+'px';
+								canvas.style.height = (w/ratio)+'px';
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								//updateElementScale('portrait');
+							}
+							else {
+								// Landscape
+								canvas.style.width = (h*ratio)+'px';
+								canvas.style.height = h+'px';
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								//updateElementScale('landscape');
+							}
+						}
+						else if (/Android/i.test(navigator.userAgent)) {
+							if(h>w) {
+								// Portrait
+								canvas.style.width = w+'px';
+								canvas.style.height = (w/ratio)+'px';
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								updateElementScale('portrait');
+							}
+							else {
+								// Landscape
+								canvas.style.width = (h*ratio)+'px';
+								canvas.style.height = h+'px';
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+
+								updateElementScale('landscape');
+							}
+						}
+						else {
+							// Device PC
+							if (document.fullscreenElement) {
+								canvas.style.width = getComputedStyle(container).width;
+								canvas.style.height = getComputedStyle(container).height;
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+							} else {
+								canvas.style.width = "960px";
+								canvas.style.height = "600px";
+
+								webview.style.width = canvas.style.width;
+								webview.style.height = canvas.style.height;
+							}	
+
+							revertElementScale();
+						}
+
+						if( isUnityLoaded ){
+							// Update Header 
+							if( isIOS() ){
+								header.style.display = "none";
+							}else{
+								if (document.fullscreenElement) {
+									header.style.display = "none";
+								}else{
+									header.style.display = "block";
+								}
+							}
+
+							unityWebView.onResizeCallFromJs(); //use JsHook file 
+						}else{
+							header.style.display = "none";
+						}
+						
+					},delay);
+				}
+
+				resize();
+				window.addEventListener("resize",resize);
+			//EOC
+			//BOC:[to handle screen lock distruption]
+				document.addEventListener("visibilitychange",()=>{
+					if (document.visibilityState === 'visible') {
+						resize(100);
+					}
+				});
+			//EOC
+			//BOC: Check if is IOS
+				function isIOS() {
+					return [
+						'iPad Simulator',
+						'iPhone Simulator',
+						'iPod Simulator',
+						'iPad',
+						'iPhone',
+						'iPod'
+					].includes(navigator.platform)
+					// iPad on iOS 13 detection
+					|| (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+				}
+			//EOC
+			//BOC: Get Viewport Scale
+				function getViewportScale(){
+					var viewportWidth = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+					var screenWidth = window.screen.width;
+					var viewportScale = screenWidth / viewportWidth;
+
+					return viewportScale;
+				}
+			//EOC
+			//BOC: Set Scaling item
+				function updateElementScale( type ){
+					var vscale = getViewportScale();
+					var oriWidth = 38;
+					var oriHeight = 38;
+					
+					fullscreenButton.style.width = oriWidth/vscale + 'px';
+					fullscreenButton.style.height = oriHeight/vscale + 'px';
+
+					if( type == 'landscape' ){
+						footer.style.display = "none";
+						footer.style.padding = '0px';
+					}else{
+						footer.style.display = "block";
+						footer.style.padding = 10/vscale + 'px';
+						footer.style.fontSize = 1/vscale + 'em';
+					}
+				}				
+			//EOC
+			//BOC: Revert Element
+				function revertElementScale(){
+					var vscale = getViewportScale();
+					var oriWidth = 38;
+					var oriHeight = 38;
+					
+					fullscreenButton.style.width = '38px';
+					fullscreenButton.style.height = '38px';
+					footer.style.padding = '10px';
+					footer.style.fontSize = '1em';
+				}				
+			//EOC
+
+			// By default Unity keeps WebGL canvas render target size matched with
+			// the DOM size of the canvas element (scaled by window.devicePixelRatio)
+			// Set this to false if you want to decouple this synchronization from
+			// happening inside the engine, and you would instead like to size up
+			// the canvas DOM size and WebGL render target sizes yourself.
+			// config.matchWebGLToCanvasSize = false;
+
+			if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+				config.devicePixelRatio = window.devicePixelRatio;
+				loadingBar.style.width = '100%';
+				loadingBar.style.height = '100%';
+			}
+
+			loadingBar.style.display = "flex";
+
+			document.addEventListener(
+				'fullscreenchange',
+				function() {
+					if (document.fullscreenElement) {
+						setTimeout(
+							function() {
+								resize(100);
+							},
+						200);
+					} else {
+						resize(100);
+					}
+				}
+			);
+
+			var script = document.createElement("script");
+			script.src = loaderUrl;
+			script.onload = () => {
+				createUnityInstance(canvas, config, (progress) => {
+					progressBarFull.style.width = 100 * progress + "%";
+				}).then((unityInstance) => {
+					window.unityInstance = unityInstance;
+					loadingBar.style.display = "none";
+
+					fullscreenButton.onclick = () => {
+						var p = document.getElementById('unity-container');
+						var c = document.getElementById('unity-canvas');
+						c.requestFullscreen = () => {
+							p.requestFullscreen();
+						};
+						unityInstance.SetFullscreen(1);
+					};
+
+					isUnityLoaded = true;
+					resize();
+				}).catch((message) => {
+					alert(message);
+				});
+			  };
+			document.body.appendChild(script);
+		</script>
+	</body>
+</html>
